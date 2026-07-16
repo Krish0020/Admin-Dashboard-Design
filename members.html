@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Member Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDnOsp8ys_E2MJviWYHdrUVJiKx4a5SBn8",
+            authDomain: "shrushti-society-app.firebaseapp.com",
+            projectId: "shrushti-society-app",
+            storageBucket: "shrushti-society-app.firebasestorage.app",
+            messagingSenderId: "1006292075403",
+            appId: "1:1006292075403:web:df619dd137f6263d4ee58e"
+        };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Payment Logic
+        const payBtn = document.getElementById('payBtn');
+        const processingUI = document.getElementById('processingUI');
+        const successUI = document.getElementById('successUI');
+        const mainUI = document.getElementById('mainUI');
+
+        payBtn.addEventListener('click', async () => {
+            mainUI.classList.add('hidden');
+            processingUI.classList.remove('hidden');
+            try {
+                const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                await addDoc(collection(db, "payments"), {
+                    member: "Rahul Tiwari", flat: "A-102", amount: 2500, date: currentDate, method: "UPI", createdAt: Date.now()
+                });
+                setTimeout(() => { processingUI.classList.add('hidden'); successUI.classList.remove('hidden'); }, 2000);
+            } catch (error) { alert("Failed!"); location.reload(); }
+        });
+
+        // Complaint Logic
+        const submitComplaintBtn = document.getElementById('submitComplaintBtn');
+        const complaintInput = document.getElementById('complaintInput');
+
+        submitComplaintBtn.addEventListener('click', async () => {
+            const issueText = complaintInput.value.trim();
+            if(!issueText) { alert("Please describe your issue!"); return; }
+            
+            const originalText = submitComplaintBtn.innerHTML;
+            submitComplaintBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            submitComplaintBtn.disabled = true;
+
+            try {
+                const currentDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                await addDoc(collection(db, "complaints"), {
+                    flat: "A-102", issue: issueText, status: "Pending", date: currentDate, createdAt: Date.now()
+                });
+                
+                complaintInput.value = "";
+                submitComplaintBtn.innerHTML = '<i class="fas fa-check"></i> Sent to Admin';
+                submitComplaintBtn.classList.replace('bg-red-500', 'bg-green-500');
+                
+                setTimeout(() => {
+                    submitComplaintBtn.innerHTML = 'Submit Complaint';
+                    submitComplaintBtn.classList.replace('bg-green-500', 'bg-red-500');
+                    submitComplaintBtn.disabled = false;
+                }, 3000);
+
+            } catch (e) { alert("Failed to send complaint"); submitComplaintBtn.innerHTML = originalText; submitComplaintBtn.disabled = false; }
+        });
+    </script>
+</head>
+<body class="bg-gray-100 font-sans antialiased text-gray-800 flex justify-center min-h-screen">
+    <div class="w-full max-w-md bg-white shadow-xl min-h-screen relative flex flex-col">
+        <div class="bg-blue-600 text-white p-5 rounded-b-2xl shadow-md">
+            <h1 class="text-xl font-bold tracking-wide">New Shrushti Society</h1>
+            <p class="text-sm opacity-80 mt-1">Member Portal</p>
+        </div>
+
+        <div id="mainUI" class="flex-1 p-6 flex flex-col gap-6">
+            <div class="bg-blue-50 border border-blue-100 rounded-xl p-5 text-center shadow-sm">
+                <div class="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-3">RT</div>
+                <h2 class="text-lg font-bold text-gray-800">Welcome, Rahul Tiwari</h2>
+                <p class="text-sm text-gray-500">Flat A-102</p>
+            </div>
+
+            <!-- Payment Card -->
+            <div class="bg-white border rounded-xl p-5 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-gray-700">Maintenance Bill</h3>
+                    <span class="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">DUE</span>
+                </div>
+                <p class="text-3xl font-extrabold text-gray-900 mb-1">₹ 2,500</p>
+                <div class="border-t pt-4 mt-4">
+                    <button id="payBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md flex justify-center items-center gap-2"><i class="fas fa-bolt text-yellow-300"></i> Pay ₹2,500 Now</button>
+                </div>
+            </div>
+
+            <!-- Complaint Card -->
+            <div class="bg-white border rounded-xl p-5 shadow-sm">
+                <h3 class="font-bold text-gray-700 mb-3"><i class="fas fa-bullhorn text-red-500 mr-2"></i>Raise a Complaint</h3>
+                <textarea id="complaintInput" rows="3" class="w-full border rounded-lg p-3 text-sm mb-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="E.g. Lift is not working on 3rd floor..."></textarea>
+                <button id="submitComplaintBtn" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all">Submit Complaint</button>
+            </div>
+        </div>
+
+        <div id="processingUI" class="hidden flex-1 p-6 flex flex-col items-center justify-center">
+            <i class="fas fa-circle-notch fa-spin text-5xl text-blue-600 mb-4"></i><h2 class="text-xl font-bold">Processing...</h2>
+        </div>
+        <div id="successUI" class="hidden flex-1 p-6 flex flex-col items-center justify-center bg-green-50">
+            <div class="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center text-4xl mb-4 shadow-lg"><i class="fas fa-check"></i></div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-1">Success!</h2>
+            <button onclick="location.reload()" class="w-full mt-6 bg-gray-800 text-white font-bold py-3 rounded-xl shadow">Go Back</button>
+        </div>
+    </div>
+</body>
+</html>
