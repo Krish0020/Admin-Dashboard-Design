@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Bell, Search, Megaphone, MessageSquareWarning, Wallet, Settings,
   ChevronRight, Plus, CheckCircle2, Clock, IndianRupee, Users, AlertTriangle, X, Menu, Circle, BadgeCheck, Video
 } from "lucide-react";
+import MemberPortal from "../MemberPortal";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 type NavItem = { id: string; label: string; icon: React.ReactNode };
@@ -20,6 +21,7 @@ const navItems: NavItem[] = [
   { id: "accounting", label: "Accounting", icon: <Wallet size={18} /> },
   { id: "meeting", label: "Live Meeting", icon: <Video size={18} /> },
   { id: "settings", label: "Settings", icon: <Settings size={18} /> },
+  { id: "members", label: "Members Portal", icon: <Users size={18} /> }
 ];
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -262,6 +264,7 @@ export default function App() {
           {activeNav === "complaints" && <div className="max-w-5xl mx-auto"><ComplaintsWidget complaints={complaints} onResolve={resolveComplaint} /></div>}
           {activeNav === "accounting" && <div className="max-w-4xl mx-auto"><AccountingWidget payments={payments} /></div>}
           {activeNav === "meeting" && <div className="max-w-5xl mx-auto"><MeetingWidget /></div>}
+          {activeNav === "members" && <MemberPortal />}
           <div className="h-6" />
         </main>
       </div>
