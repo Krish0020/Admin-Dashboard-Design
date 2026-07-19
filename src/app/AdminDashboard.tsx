@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { db } from "../firebase";
 import { collection, addDoc, onSnapshot, query, orderBy, doc, updateDoc } from "firebase/firestore";
 import {
   LayoutDashboard, Bell, Search, Megaphone, MessageSquareWarning, Landmark,
   CheckCircle2, AlertTriangle, X, Menu, ShieldCheck, Video, Plus, ArrowRight,
-  ScrollText, Building2, Wallet, Clock, Copy,
+  ScrollText, Building2, Wallet, Clock, Copy, Camera, CameraOff, Phone,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -41,11 +41,33 @@ const navItems: NavItem[] = [
   { id: "complaints", label: "Complaints", icon: <MessageSquareWarning size={18} /> },
   { id: "accounting", label: "Accounting", icon: <ScrollText size={18} /> },
   { id: "meeting", label: "Meeting", icon: <Video size={18} /> },
+  { id: "cctv", label: "CCTV", icon: <Camera size={18} /> },
   { id: "funds", label: "Custom Funds", icon: <ShieldCheck size={18} /> },
 ];
 
 const ALL_FLATS = ["A-101", "A-102", "A-103", "B-101", "B-102"];
 const CHART_COLORS = { resolved: "#2F5233", pending: "#8B3A3A" };
+
+// Demo camera points — the live feed (when enabled) is mirrored across all of
+// them since there's no real CCTV hardware wired up yet; swap in actual
+// RTSP/ONVIF stream URLs per camera when the society installs cameras.
+const CAMERAS = [
+  { id: "main-gate", name: "Main Gate" },
+  { id: "parking", name: "Parking Area" },
+  { id: "lobby", name: "Lobby" },
+  { id: "back-gate", name: "Back Gate" },
+  { id: "terrace", name: "Terrace" },
+  { id: "basement", name: "Basement Parking" },
+];
+
+const CONTACTS = [
+  { role: "Watchman", phone: "+91 90000 11111" },
+  { role: "Electrician (VVMC)", phone: "+91 90000 22222" },
+  { role: "Water Supply Officer (VVMC)", phone: "+91 90000 33333" },
+  { role: "Waste Collection", phone: "+91 90000 44444" },
+  { role: "Plumber (on-call)", phone: "+91 90000 55555" },
+  { role: "Society Secretary", phone: "+91 98200 00000" },
+];
 
 const ink = "#1E2A22", forest = "#2F5233", gold = "#B4872A", maroon = "#8B3A3A", muted = "#8B8168", line = "#DED7C2";
 const serif = "'IBM Plex Serif', serif", mono = "'IBM Plex Mono', monospace";
@@ -66,6 +88,44 @@ function StampBadge({ label, tone }: { label: string; tone: "resolved" | "pendin
   );
 }
 
+function CameraTile({ name, stream, tick, onClick }: { name: string; stream: MediaStream | null; tick: number; onClick: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = stream;
+  }, [stream]);
+
+  return (
+    <button onClick={onClick} className="relative rounded-lg overflow-hidden aspect-video text-left" style={{ background: "#0B120D" }}>
+      {stream ? (
+        <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+      ) : (
+        <div
+          className="w-full h-full flex flex-col items-center justify-center gap-2"
+          style={{ backgroundImage: "repeating-linear-gradient(45deg, #16201A 0px, #16201A 2px, #0B120D 2px, #0B120D 9px)" }}
+        >
+          <CameraOff size={18} style={{ color: "#3A4A3F" }} />
+          <span className="text-[10px] uppercase tracking-wide" style={{ color: "#3A4A3F", fontFamily: mono }}>Standby</span>
+        </div>
+      )}
+      <div
+        className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold"
+        style={{ background: "rgba(0,0,0,0.55)", color: stream ? "#FF6B6B" : "#8FA396" }}
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: stream ? "#FF3B3B" : "#5C6E62" }} />
+        {stream ? "LIVE" : "OFFLINE"}
+      </div>
+      <div className="absolute bottom-2 left-2 text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ background: "rgba(0,0,0,0.5)", color: "#E8E4D6", fontFamily: mono }}>
+        {name}
+      </div>
+      {stream && (
+        <div className="absolute bottom-2 right-2 text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(0,0,0,0.5)", color: "#E8E4D6", fontFamily: mono }}>
+          {new Date(tick).toLocaleTimeString("en-IN")}
+        </div>
+      )}
+    </button>
+  );
+}
+
 export default function AdminDashboard() {
   const [activeNav, setActiveNav] = useState("dashboard");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -83,6 +143,19 @@ export default function AdminDashboard() {
   const [selectedFlat, setSelectedFlat] = useState<string | null>(null);
   const [activeRoom, setActiveRoom] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const [feedStream, setFeedStream] = useState<MediaStream | null>(null);
+  const [camError, setCamError] = useState<string | null>(null);
+  const [expandedCam, setExpandedCam] = useState<string | null>(null);
+  const [clockTick, setClockTick] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setClockTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Stop camera tracks on unmount so the browser's recording indicator clears
+  useEffect(() => () => { feedStream?.getTracks().forEach(t => t.stop()); }, [feedStream]);
 
   useEffect(() => {
     const qNotices = query(collection(db, "notices"), orderBy("createdAt", "desc"));
@@ -137,6 +210,22 @@ export default function AdminDashboard() {
     navigator.clipboard?.writeText(`https://meet.jit.si/${roomName}`);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 1500);
+  };
+
+  const enableFeed = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setFeedStream(stream);
+      setCamError(null);
+    } catch (e) {
+      setCamError("Camera access was denied or isn't available on this device.");
+    }
+  };
+
+  const disableFeed = () => {
+    feedStream?.getTracks().forEach(t => t.stop());
+    setFeedStream(null);
+    setExpandedCam(null);
   };
 
   const complaintStats = [
@@ -392,6 +481,19 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Important contacts */}
+            <div className="bg-white p-5 rounded-xl border" style={{ borderColor: line }}>
+              <h3 className="text-base font-semibold mb-4" style={{ fontFamily: serif }}>Important contacts</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
+                {CONTACTS.map(c => (
+                  <a key={c.role} href={`tel:${c.phone.replace(/\s/g, "")}`} className="flex items-center justify-between text-sm py-1">
+                    <span style={{ color: ink }}>{c.role}</span>
+                    <span className="flex items-center gap-1.5 font-medium" style={{ color: forest, fontFamily: mono }}><Phone size={13} />{c.phone}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -559,6 +661,52 @@ export default function AdminDashboard() {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* CCTV */}
+        {activeNav === "cctv" && (
+          <div className="max-w-5xl mx-auto space-y-5">
+            <div className="bg-white rounded-xl border p-5 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: line }}>
+              <div>
+                <h3 className="text-base font-semibold" style={{ fontFamily: serif }}>Surveillance wall</h3>
+                <p className="text-xs mt-0.5" style={{ color: muted }}>
+                  {feedStream ? `${CAMERAS.length} of ${CAMERAS.length} cameras online` : "Cameras offline — enable the feed to start monitoring"}
+                </p>
+              </div>
+              {!feedStream ? (
+                <button onClick={enableFeed} className="text-white font-semibold px-5 py-2.5 rounded-lg text-sm hover:opacity-90" style={{ background: forest }}>Enable live feed</button>
+              ) : (
+                <button onClick={disableFeed} className="font-semibold px-5 py-2.5 rounded-lg text-sm" style={{ border: `1px solid ${maroon}`, color: maroon }}>Disable feed</button>
+              )}
+            </div>
+
+            {camError && (
+              <div className="text-sm px-4 py-3 rounded-lg" style={{ background: "#8B3A3A14", color: maroon }}>{camError}</div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {CAMERAS.map(cam => (
+                <CameraTile key={cam.id} name={cam.name} stream={feedStream} tick={clockTick} onClick={() => feedStream && setExpandedCam(cam.name)} />
+              ))}
+            </div>
+
+            <p className="text-[11px]" style={{ color: muted }}>
+              Demo note: every tile mirrors this device's camera since no physical CCTV hardware is wired up yet — swap in real RTSP/ONVIF stream URLs per camera once the society installs them.
+            </p>
+          </div>
+        )}
+
+        {/* Expanded camera modal */}
+        {expandedCam && feedStream && (
+          <div className="fixed inset-0 bg-black/70 z-[65] flex items-center justify-center p-4" onClick={() => setExpandedCam(null)}>
+            <div className="w-full max-w-3xl" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-white font-medium text-sm" style={{ fontFamily: mono }}>{expandedCam}</span>
+                <button onClick={() => setExpandedCam(null)} className="text-white/80 hover:text-white"><X size={22} /></button>
+              </div>
+              <CameraTile name={expandedCam} stream={feedStream} tick={clockTick} onClick={() => {}} />
+            </div>
           </div>
         )}
 
