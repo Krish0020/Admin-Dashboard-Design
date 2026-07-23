@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { db } from "./firebase";
 import { collection, addDoc, onSnapshot, query, where, doc, setDoc } from "firebase/firestore";
 import {
@@ -325,16 +326,22 @@ export default function MemberPortal() {
             </div>
 
             {/* Event dues */}
-            {unpaidFunds.map(fund => (
-              <div key={fund.id} className="bg-white rounded-2xl p-5 border relative" style={{ borderColor: "#8B3A3A55" }}>
+            {unpaidFunds.map((fund, i) => (
+              <motion.div
+                key={fund.id}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: i * 0.07 }}
+                className="bg-white rounded-2xl p-5 border relative" style={{ borderColor: "#8B3A3A55" }}
+              >
                 <span className="absolute top-4 right-4 text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-full" style={{ color: maroon, border: `1.5px dashed ${maroon}`, transform: "rotate(-2deg)", fontFamily: mono }}>Due</span>
                 <h3 className="font-semibold text-base pr-16" style={{ fontFamily: serif }}>{fund.eventName}</h3>
                 <p className="text-sm mt-1" style={{ color: muted }}>Due date: <span className="font-medium" style={{ color: ink }}>{fund.dueDate}</span></p>
                 <div className="flex justify-between items-center mt-4">
                   <span className="text-xl font-semibold" style={{ color: maroon, fontFamily: mono }}>{formatINR(fund.amount)}</span>
-                  <button onClick={() => handlePayment(fund, "Event")} className="text-white font-semibold py-2 px-5 rounded-lg hover:opacity-90" style={{ background: maroon }}>Pay now</button>
+                  <motion.button whileTap={{ scale: 0.95 }} onClick={() => handlePayment(fund, "Event")} className="text-white font-semibold py-2 px-5 rounded-lg" style={{ background: maroon }}>Pay now</motion.button>
                 </div>
-              </div>
+              </motion.div>
             ))}
 
             {/* Quick complaint access */}
@@ -510,7 +517,17 @@ export default function MemberPortal() {
               className="flex-1 flex flex-col items-center gap-1 py-2.5 relative"
               style={{ color: active ? forest : muted }}
             >
-              <Icon size={19} strokeWidth={active ? 2.4 : 2} />
+              {active && (
+                <motion.span
+                  layoutId="bottomnav-active"
+                  className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full"
+                  style={{ background: forest }}
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                />
+              )}
+              <motion.span animate={{ scale: active ? 1.1 : 1 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
+                <Icon size={19} strokeWidth={active ? 2.4 : 2} />
+              </motion.span>
               <span className="text-[10px] font-medium">{tab.label}</span>
               {tab.id === "notices" && unreadCount > 0 && (
                 <span className="absolute top-1.5 right-[27%] w-1.5 h-1.5 rounded-full" style={{ background: maroon }} />
@@ -522,19 +539,30 @@ export default function MemberPortal() {
 
       {/* Notice popup */}
       {popupNotice && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-end justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center gap-2 mb-3">
-              <Bell size={16} style={{ color: popupNotice.urgent ? maroon : forest }} />
-              <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: popupNotice.urgent ? maroon : forest, fontFamily: mono }}>
-                {popupNotice.urgent ? "Urgent notice" : "New notice"}
-              </span>
-            </div>
-            <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: serif }}>{popupNotice.title}</h3>
-            <p className="text-sm mb-5" style={{ color: "#4A5850" }}>{popupNotice.subtitle}</p>
-            <button onClick={() => setPopupNotice(null)} className="w-full text-white font-semibold py-3 rounded-xl hover:opacity-90" style={{ background: ink }}>Got it</button>
-          </div>
-        </div>
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-end justify-center p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 60 }}
+              transition={{ type: "spring", stiffness: 320, damping: 28 }}
+              className="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Bell size={16} style={{ color: popupNotice.urgent ? maroon : forest }} />
+                <span className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: popupNotice.urgent ? maroon : forest, fontFamily: mono }}>
+                  {popupNotice.urgent ? "Urgent notice" : "New notice"}
+                </span>
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ fontFamily: serif }}>{popupNotice.title}</h3>
+              <p className="text-sm mb-5" style={{ color: "#4A5850" }}>{popupNotice.subtitle}</p>
+              <motion.button whileTap={{ scale: 0.97 }} onClick={() => setPopupNotice(null)} className="w-full text-white font-semibold py-3 rounded-xl" style={{ background: ink }}>Got it</motion.button>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
       )}
 
       {/* Payment processing / success overlay */}
@@ -550,7 +578,15 @@ export default function MemberPortal() {
             )}
             {paymentStage === "success" && receiptData && (
               <div className="flex flex-col items-center">
-                <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-4 border-2" style={{ borderColor: forest, color: forest }}>✓</div>
+                <motion.div
+                  initial={{ scale: 0, rotate: -45 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: "spring", stiffness: 260, damping: 18 }}
+                  className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mb-4 border-2"
+                  style={{ borderColor: forest, color: forest }}
+                >
+                  ✓
+                </motion.div>
                 <h2 className="text-lg font-semibold mb-5" style={{ fontFamily: serif }}>Payment recorded</h2>
                 <ReceiptSlip data={receiptData} tokens={{ ink, forest, gold, muted, line, serif, mono }} />
                 <button onClick={() => { setPaymentStage("idle"); setReceiptData(null); }} className="w-full text-white font-semibold py-3 rounded-xl mt-6 hover:opacity-90" style={{ background: ink }}>Back to home</button>
