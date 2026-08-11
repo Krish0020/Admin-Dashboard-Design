@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { db } from "./firebase";
-import { collection, addDoc, onSnapshot, query, where, doc, setDoc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, where, doc, setDoc, updateDoc } from "firebase/firestore";
 import {
   Home, Megaphone, Landmark, MessageSquareWarning, UserCircle2, Bell, X,
-  ChevronRight, Camera, Phone, CheckCircle2, Clock,
+  ChevronRight, Camera, Phone, CheckCircle2, Clock, MessagesSquare, Send,
 } from "lucide-react";
 
 /**
@@ -41,6 +41,7 @@ type Payment = {
 };
 type CustomFund = { id: string; eventName: string; amount: number; dueDate: string; createdAt: number };
 type MemberProfile = { name: string; phone: string; flat: string; photoDataUrl?: string };
+type ChatMessage = { id: string; chatId: string; sender: string; text: string; createdAt: number; read?: boolean };
 
 const formatINR = (value: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value || 0);
@@ -63,6 +64,7 @@ const TABS = [
   { id: "notices", label: "Notices", icon: Megaphone },
   { id: "payments", label: "Payments", icon: Landmark },
   { id: "complaints", label: "Complaints", icon: MessageSquareWarning },
+  { id: "chat", label: "Chat", icon: MessagesSquare },
   { id: "profile", label: "Profile", icon: UserCircle2 },
 ] as const;
 type TabId = typeof TABS[number]["id"];
@@ -87,6 +89,10 @@ export default function MemberPortal() {
 
   const [complaintText, setComplaintText] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatId = `member-${flatNumber}`;
 
   const [paymentStage, setPaymentStage] = useState<"idle" | "processing" | "success">("idle");
   const [receiptData, setReceiptData] = useState<Payment | null>(null);
@@ -166,6 +172,16 @@ export default function MemberPortal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Chat with the admin — same "messages" collection the admin's Correspondence tab uses
+  useEffect(() => {
+    const q = query(collection(db, "messages"), where("chatId", "==", chatId));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
+    });
+    return unsub;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const openNoticesTab = () => {
     setActiveTab("notices");
     setUnreadCount(0);
@@ -173,6 +189,22 @@ export default function MemberPortal() {
       lastSeenRef.current = notices[0].createdAt || Date.now();
       localStorage.setItem("lastSeenNoticeTs", String(lastSeenRef.current));
     }
+  };
+
+  const chatUnreadCount = messages.filter(m => m.sender === "admin" && !m.read).length;
+
+  const openChatTab = async () => {
+    setActiveTab("chat");
+    const unread = messages.filter(m => m.sender === "admin" && !m.read);
+    await Promise.all(unread.map(m => updateDoc(doc(db, "messages", m.id), { read: true })));
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+    await addDoc(collection(db, "messages"), {
+      chatId, sender: chatId, text: chatInput.trim(), createdAt: Date.now(), read: true,
+    });
+    setChatInput("");
   };
 
   const requestNotifications = () => {
@@ -446,6 +478,42 @@ export default function MemberPortal() {
           </div>
         )}
 
+        {/* CHAT */}
+        {activeTab === "chat" && (
+          <div className="flex flex-col" style={{ height: "calc(100vh - 260px)" }}>
+            <div className="flex-1 overflow-y-auto bg-white rounded-xl border p-4 space-y-3" style={{ borderColor: line }}>
+              {messages.length === 0 && (
+                <p className="text-center text-sm mt-8" style={{ color: muted }}>No messages yet — say hello to the admin.</p>
+              )}
+              {[...messages].sort((a, b) => a.createdAt - b.createdAt).map(m => (
+                <div key={m.id} className={`flex ${m.sender === chatId ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className="max-w-[75%] px-3.5 py-2 rounded text-sm"
+                    style={m.sender === chatId
+                      ? { background: forest, color: "#F7F4EC", borderBottomRightRadius: 2 }
+                      : { background: "#F7F4EC", border: `1px solid ${line}`, borderBottomLeftRadius: 2 }}
+                  >
+                    <p>{m.text}</p>
+                    <p className="text-[10px] mt-1 opacity-70">{new Date(m.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <input
+                type="text" value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleSendChatMessage(); }}
+                placeholder="Message the admin..."
+                className="flex-1 px-3.5 py-2.5 rounded-xl text-sm focus:outline-none"
+                style={{ background: "white", border: `1px solid ${line}` }}
+              />
+              <button onClick={handleSendChatMessage} className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: forest }}>
+                <Send size={17} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* PROFILE */}
         {activeTab === "profile" && (
           <div className="bg-white rounded-2xl p-5 border" style={{ borderColor: line }}>
@@ -513,7 +581,7 @@ export default function MemberPortal() {
           return (
             <button
               key={tab.id}
-              onClick={() => (tab.id === "notices" ? openNoticesTab() : setActiveTab(tab.id))}
+              onClick={() => (tab.id === "notices" ? openNoticesTab() : tab.id === "chat" ? openChatTab() : setActiveTab(tab.id))}
               className="flex-1 flex flex-col items-center gap-1 py-2.5 relative"
               style={{ color: active ? forest : muted }}
             >
@@ -530,6 +598,9 @@ export default function MemberPortal() {
               </motion.span>
               <span className="text-[10px] font-medium">{tab.label}</span>
               {tab.id === "notices" && unreadCount > 0 && (
+                <span className="absolute top-1.5 right-[27%] w-1.5 h-1.5 rounded-full" style={{ background: maroon }} />
+              )}
+              {tab.id === "chat" && chatUnreadCount > 0 && (
                 <span className="absolute top-1.5 right-[27%] w-1.5 h-1.5 rounded-full" style={{ background: maroon }} />
               )}
             </button>
