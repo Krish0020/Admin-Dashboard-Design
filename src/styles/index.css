@@ -1,3 +1,68 @@
-@import './fonts.css';
-@import './tailwind.css';
-@import './theme.css';
+@import "tailwindcss";
+
+:root {
+  --paper: #efead9;
+  --paper-light: #f8f5ea;
+  --ink: #1a1b16;
+  --ink-muted: #75705c;
+  --line: #dcd3b7;
+  --stamp-purple: #4b3b78;
+  --stamp-red: #9e2b25;
+  --kraft: #c7a467;
+  --gold: #a67c2e;
+
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus everywhere — the browser default disappears on
+   custom-styled buttons, so we put it back deliberately. */
+:where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--stamp-purple);
+  outline-offset: 2px;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+::placeholder {
+  color: #a49d85;
+}
+
+/* The paper grain: one repeating hairline, like ledger paper. Cheap to
+   render and it is the only decorative flourish in the app. */
+.paper-rule {
+  background-image: repeating-linear-gradient(
+    180deg,
+    rgba(166, 124, 46, 0.05) 0px,
+    rgba(166, 124, 46, 0.05) 1px,
+    transparent 1px,
+    transparent 32px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

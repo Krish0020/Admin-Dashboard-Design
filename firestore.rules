@@ -1,0 +1,169 @@
+rules_version = '2';
+
+// =====================================================================
+//  New Shrushti CHS — Firestore security rules
+//
+//  These rules are the real access control. The React app hides buttons a
+//  resident shouldn't press, but anyone can open the browser console and
+//  call Firestore directly, so every rule that matters is repeated here on
+//  the server side.
+//
+//  Deploy with:  firebase deploy --only firestore:rules
+//  (or paste into Firebase Console → Firestore → Rules → Publish)
+// =====================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ----------------------------- helpers ---------------------------- */
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function profileExists() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return profileExists() && me().role == 'admin' && me().status == 'active';
+    }
+
+    // An approved resident (or the committee).
+    function isActiveUser() {
+      return profileExists() && me().status == 'active';
+    }
+
+    function unchanged(field) {
+      return request.resource.data[field] == resource.data[field];
+    }
+
+    /* ------------------------------ users ----------------------------- */
+    // A person may create only their own profile, and only as a pending
+    // member — this is what stops someone signing themselves up as admin.
+    // Only an admin can change role or status (i.e. approve an account).
+
+    match /users/{uid} {
+      allow read: if request.auth.uid == uid || isAdmin();
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == 'member'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.name is string
+        && request.resource.data.flat is string
+        && request.resource.data.email is string;
+
+      // Residents may edit their own name and phone, nothing else.
+      allow update: if isAdmin()
+        || (request.auth.uid == uid
+            && unchanged('role')
+            && unchanged('status')
+            && unchanged('flat')
+            && unchanged('email'));
+
+      allow delete: if isAdmin();
+    }
+
+    /* ---------------------------- notices ----------------------------- */
+
+    match /notices/{id} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ----------------------------- funds ------------------------------ */
+
+    match /funds/{id} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* --------------------------- complaints --------------------------- */
+    // A resident files a complaint against their own flat and can read only
+    // their own. The committee reads everything and owns the status field.
+
+    match /complaints/{id} {
+      allow read: if isAdmin() || (isActiveUser() && resource.data.uid == request.auth.uid);
+
+      allow create: if isActiveUser()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.flat == me().flat
+        && request.resource.data.status == 'Pending'
+        && request.resource.data.issue is string
+        && request.resource.data.issue.size() > 0;
+
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    /* ---------------------------- payments ---------------------------- */
+    // Receipts are append-only: once written, neither the resident nor the
+    // committee can edit or delete one, so the ledger cannot be doctored.
+    // A resident can only create a payment for their own uid and flat.
+
+    match /payments/{id} {
+      allow read: if isAdmin() || (isActiveUser() && resource.data.uid == request.auth.uid);
+
+      allow create: if
+        // resident paying for themselves through the app
+        (isActiveUser()
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.flat == me().flat
+          && request.resource.data.recordedBy == 'member'
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.transactionId is string)
+        // committee recording a cash / cheque payment at the office
+        || (isAdmin()
+          && request.resource.data.recordedBy == 'admin'
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0);
+
+      allow update, delete: if false;
+    }
+
+    /* -------------------------- work register ------------------------- */
+
+    match /work_items/{id} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------- meetings ---------------------------- */
+
+    match /meetings/{id} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /* ---------------------------- messages ---------------------------- */
+    // chatId is always the resident's uid, so a resident sees only their own
+    // thread and can only write into it as themselves.
+
+    match /messages/{id} {
+      allow read: if isAdmin() || (isActiveUser() && resource.data.chatId == request.auth.uid);
+
+      allow create: if
+        (isActiveUser()
+          && request.resource.data.chatId == request.auth.uid
+          && request.resource.data.senderUid == request.auth.uid
+          && request.resource.data.senderRole == 'member')
+        || (isAdmin() && request.resource.data.senderRole == 'admin');
+
+      // Only the read receipts may be flipped; message text is immutable.
+      allow update: if (isAdmin() || (isActiveUser() && resource.data.chatId == request.auth.uid))
+        && request.resource.data.text == resource.data.text
+        && request.resource.data.senderUid == resource.data.senderUid;
+
+      allow delete: if isAdmin();
+    }
+
+    /* Anything not matched above is denied by default. */
+  }
+}
