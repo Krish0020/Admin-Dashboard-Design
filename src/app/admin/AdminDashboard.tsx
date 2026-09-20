@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { collection } from "firebase/firestore";
 import {
   LayoutDashboard,
@@ -55,7 +55,15 @@ export default function AdminDashboard() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [demoOpen, setDemoOpen] = useState(false);
 
-  const users = useLiveQuery<UserProfile & { id: string }>(() => collection(db, "users"), [], byNewest);
+  const rawUsers = useLiveQuery<UserProfile & { id: string }>(() => collection(db, "users"), [], byNewest);
+
+  // A resident's UID is the document ID. Older records (and any written
+  // before the field was added) don't repeat it inside the document, so fill
+  // it in here — every screen below addresses residents by `uid`.
+  const users = useMemo(
+    () => ({ ...rawUsers, data: rawUsers.data.map((u) => ({ ...u, uid: u.uid || u.id })) }),
+    [rawUsers.data, rawUsers.loading]
+  );
   const payments = useLiveQuery<Payment>(() => collection(db, "payments"), [], byNewest);
   const complaints = useLiveQuery<Complaint>(() => collection(db, "complaints"), [], byNewest);
   const notices = useLiveQuery<NoticeDoc>(() => collection(db, "notices"), [], byNewest);

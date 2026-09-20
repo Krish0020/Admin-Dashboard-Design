@@ -39,6 +39,7 @@ export async function seedDemoData() {
   RESIDENTS.forEach((r, i) => {
     batch.set(doc(db, "users", r.uid), {
       ...DEMO_FLAG,
+      uid: r.uid,
       name: r.name,
       email: `${r.flat.toLowerCase().replace("-", "")}@example.com`,
       phone: r.phone,
@@ -51,6 +52,7 @@ export async function seedDemoData() {
 
   batch.set(doc(db, "users", "demo-b104"), {
     ...DEMO_FLAG,
+    uid: "demo-b104",
     name: "Nikhil Gaikwad",
     email: "b104@example.com",
     phone: "+91 98207 10786",

@@ -87,6 +87,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The security rules only accept role "member" + status "pending"
         // here, so nobody can sign themselves up as an admin.
         await setDoc(doc(db, "users", cred.user.uid), {
+          // Stored as a field as well as the document ID, so screens that
+          // list residents can address each one without re-reading the ID.
+          uid: cred.user.uid,
           name: name.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim(),
