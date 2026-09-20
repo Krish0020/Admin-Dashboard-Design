@@ -1,169 +1,151 @@
-rules_version = '2';
+import { useState } from "react";
+import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
+import { Plus, Trash2 } from "lucide-react";
+import { db } from "../../lib/firebase";
+import { Notice as NoticeDoc } from "../../lib/types";
+import { Btn, Card, Empty, Field, Heading, Input, Modal, Muted, Notice, Spinner, TextArea } from "../../ui/primitives";
+import { c, font, formatDateTime } from "../../ui/theme";
 
-// =====================================================================
-//  New Shrushti CHS — Firestore security rules
-//
-//  These rules are the real access control. The React app hides buttons a
-//  resident shouldn't press, but anyone can open the browser console and
-//  call Firestore directly, so every rule that matters is repeated here on
-//  the server side.
-//
-//  Deploy with:  firebase deploy --only firestore:rules
-//  (or paste into Firebase Console → Firestore → Rules → Publish)
-// =====================================================================
+export default function Notices({
+  notices,
+  loading,
+  adminName,
+}: {
+  notices: NoticeDoc[];
+  loading: boolean;
+  adminName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", body: "", urgent: false });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    /* ----------------------------- helpers ---------------------------- */
-
-    function signedIn() {
-      return request.auth != null;
+  const publish = async () => {
+    if (!form.title.trim() || !form.body.trim()) {
+      setError("A notice needs a title and the details residents should read.");
+      return;
     }
-
-    function me() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    setBusy(true);
+    setError(null);
+    try {
+      await addDoc(collection(db, "notices"), {
+        number: String(notices.length + 1).padStart(3, "0"),
+        title: form.title.trim(),
+        body: form.body.trim(),
+        urgent: form.urgent,
+        postedBy: adminName,
+        createdAt: Date.now(),
+      });
+      setForm({ title: "", body: "", urgent: false });
+      setOpen(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
     }
+  };
 
-    function profileExists() {
-      return signedIn() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+      <div className="flex items-center justify-between">
+        <Muted>
+          {notices.length} notice{notices.length === 1 ? "" : "s"} published
+        </Muted>
+        <Btn onClick={() => setOpen(true)}>
+          <Plus size={16} /> Post a notice
+        </Btn>
+      </div>
 
-    function isAdmin() {
-      return profileExists() && me().role == 'admin' && me().status == 'active';
-    }
+      {loading ? (
+        <Spinner />
+      ) : notices.length === 0 ? (
+        <Card padded={false}>
+          <Empty
+            title="The board is empty. Anything you post here reaches every resident's phone immediately."
+            action={<Btn onClick={() => setOpen(true)}>Post the first notice</Btn>}
+          />
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {notices.map((n) => (
+            <Card key={n.id}>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <span
+                  className="rounded px-2 py-0.5 text-[10px] font-semibold"
+                  style={{
+                    background: n.urgent ? `${c.red}18` : `${c.purple}18`,
+                    color: n.urgent ? c.red : c.purple,
+                    fontFamily: font.mono,
+                  }}
+                >
+                  {n.urgent ? "Urgent" : "Notice"} #{n.number}
+                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px]" style={{ color: c.inkMuted }}>
+                    {formatDateTime(n.createdAt)}
+                  </span>
+                  <button
+                    onClick={() => {
+                      if (confirm("Take this notice off the board?")) deleteDoc(doc(db, "notices", n.id));
+                    }}
+                    style={{ color: c.inkMuted }}
+                    aria-label="Delete notice"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </div>
+              <Heading size="sm">{n.title}</Heading>
+              <p className="mt-1.5 text-sm leading-relaxed" style={{ color: c.ink }}>
+                {n.body}
+              </p>
+              <p className="mt-3 text-[11px]" style={{ color: c.inkMuted }}>
+                Posted by {n.postedBy}
+              </p>
+            </Card>
+          ))}
+        </div>
+      )}
 
-    // An approved resident (or the committee).
-    function isActiveUser() {
-      return profileExists() && me().status == 'active';
-    }
-
-    function unchanged(field) {
-      return request.resource.data[field] == resource.data[field];
-    }
-
-    /* ------------------------------ users ----------------------------- */
-    // A person may create only their own profile, and only as a pending
-    // member — this is what stops someone signing themselves up as admin.
-    // Only an admin can change role or status (i.e. approve an account).
-
-    match /users/{uid} {
-      allow read: if request.auth.uid == uid || isAdmin();
-
-      allow create: if signedIn()
-        && request.auth.uid == uid
-        && request.resource.data.role == 'member'
-        && request.resource.data.status == 'pending'
-        && request.resource.data.name is string
-        && request.resource.data.flat is string
-        && request.resource.data.email is string;
-
-      // Residents may edit their own name and phone, nothing else.
-      allow update: if isAdmin()
-        || (request.auth.uid == uid
-            && unchanged('role')
-            && unchanged('status')
-            && unchanged('flat')
-            && unchanged('email'));
-
-      allow delete: if isAdmin();
-    }
-
-    /* ---------------------------- notices ----------------------------- */
-
-    match /notices/{id} {
-      allow read: if isActiveUser();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /* ----------------------------- funds ------------------------------ */
-
-    match /funds/{id} {
-      allow read: if isActiveUser();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /* --------------------------- complaints --------------------------- */
-    // A resident files a complaint against their own flat and can read only
-    // their own. The committee reads everything and owns the status field.
-
-    match /complaints/{id} {
-      allow read: if isAdmin() || (isActiveUser() && resource.data.uid == request.auth.uid);
-
-      allow create: if isActiveUser()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.flat == me().flat
-        && request.resource.data.status == 'Pending'
-        && request.resource.data.issue is string
-        && request.resource.data.issue.size() > 0;
-
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
-    }
-
-    /* ---------------------------- payments ---------------------------- */
-    // Receipts are append-only: once written, neither the resident nor the
-    // committee can edit or delete one, so the ledger cannot be doctored.
-    // A resident can only create a payment for their own uid and flat.
-
-    match /payments/{id} {
-      allow read: if isAdmin() || (isActiveUser() && resource.data.uid == request.auth.uid);
-
-      allow create: if
-        // resident paying for themselves through the app
-        (isActiveUser()
-          && request.resource.data.uid == request.auth.uid
-          && request.resource.data.flat == me().flat
-          && request.resource.data.recordedBy == 'member'
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
-          && request.resource.data.transactionId is string)
-        // committee recording a cash / cheque payment at the office
-        || (isAdmin()
-          && request.resource.data.recordedBy == 'admin'
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0);
-
-      allow update, delete: if false;
-    }
-
-    /* -------------------------- work register ------------------------- */
-
-    match /work_items/{id} {
-      allow read: if isActiveUser();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /* ---------------------------- meetings ---------------------------- */
-
-    match /meetings/{id} {
-      allow read: if isActiveUser();
-      allow create, update, delete: if isAdmin();
-    }
-
-    /* ---------------------------- messages ---------------------------- */
-    // chatId is always the resident's uid, so a resident sees only their own
-    // thread and can only write into it as themselves.
-
-    match /messages/{id} {
-      allow read: if isAdmin() || (isActiveUser() && resource.data.chatId == request.auth.uid);
-
-      allow create: if
-        (isActiveUser()
-          && request.resource.data.chatId == request.auth.uid
-          && request.resource.data.senderUid == request.auth.uid
-          && request.resource.data.senderRole == 'member')
-        || (isAdmin() && request.resource.data.senderRole == 'admin');
-
-      // Only the read receipts may be flipped; message text is immutable.
-      allow update: if (isAdmin() || (isActiveUser() && resource.data.chatId == request.auth.uid))
-        && request.resource.data.text == resource.data.text
-        && request.resource.data.senderUid == resource.data.senderUid;
-
-      allow delete: if isAdmin();
-    }
-
-    /* Anything not matched above is denied by default. */
-  }
+      {open && (
+        <Modal title="Post a notice" onClose={() => setOpen(false)}>
+          <div className="space-y-4">
+            <Field label="Title">
+              <Input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                placeholder="Water supply interrupted on Thursday"
+              />
+            </Field>
+            <Field label="Details">
+              <TextArea
+                rows={5}
+                value={form.body}
+                onChange={(e) => setForm({ ...form, body: e.target.value })}
+                placeholder="Tank cleaning between 10 AM and 4 PM. Please store water in advance."
+              />
+            </Field>
+            <label
+              className="flex cursor-pointer items-center gap-2.5 rounded p-3"
+              style={{ background: `${c.red}0D`, border: `1px solid ${c.red}33` }}
+            >
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={form.urgent}
+                onChange={(e) => setForm({ ...form, urgent: e.target.checked })}
+              />
+              <span className="text-sm font-semibold" style={{ color: c.red }}>
+                Mark as urgent
+              </span>
+            </label>
+            {error && <Notice>{error}</Notice>}
+            <Btn block loading={busy} onClick={publish}>
+              Publish to all residents
+            </Btn>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
 }

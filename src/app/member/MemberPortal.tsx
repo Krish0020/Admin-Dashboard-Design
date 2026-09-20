@@ -112,7 +112,7 @@ export default function MemberPortal() {
       {/* Header */}
       <header
         className="paper-rule relative rounded-b-3xl px-6 pb-7 pt-9 text-center"
-        style={{ background: c.ink }}
+        style={{ background: c.deep }}
       >
         <button
           onClick={() => logout()}
@@ -122,10 +122,10 @@ export default function MemberPortal() {
         >
           <LogOut size={18} />
         </button>
-        <p className="text-[11px] tracking-[0.18em]" style={{ color: c.kraft, fontFamily: font.mono }}>
+        <p className="text-[11px] tracking-[0.18em]" style={{ color: c.purple, fontFamily: font.mono }}>
           Resident portal
         </p>
-        <h1 className="mt-1.5 text-xl" style={{ color: c.paperLight, fontFamily: font.display }}>
+        <h1 className="mt-1.5 text-xl" style={{ color: c.ink, fontFamily: font.display }}>
           {SOCIETY_NAME}
         </h1>
         <p className="mt-1 text-xs" style={{ color: "#8FA396", fontFamily: font.mono }}>
@@ -345,7 +345,7 @@ function NoticesTab({ notices, loading }: { notices: NoticeDoc[]; loading: boole
             </span>
           </div>
           <Heading size="sm">{n.title}</Heading>
-          <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "#4A4838" }}>
+          <p className="mt-1.5 text-sm leading-relaxed" style={{ color: c.ink }}>
             {n.body}
           </p>
         </Card>

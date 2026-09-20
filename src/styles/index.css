@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #efead9;
-  --paper-light: #f8f5ea;
-  --ink: #1a1b16;
-  --ink-muted: #75705c;
-  --line: #dcd3b7;
-  --stamp-purple: #4b3b78;
-  --stamp-red: #9e2b25;
-  --kraft: #c7a467;
-  --gold: #a67c2e;
+  --paper: #0b2018;
+  --paper-light: #123024;
+  --deep: #06140e;
+  --ink: #f2e8ce;
+  --ink-muted: #9cb1a0;
+  --line: #28503c;
+  --gold: #c9a84c;
+  --copper: #c0703a;
+  --oxblood: #b8453b;
 
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html,
@@ -29,9 +29,9 @@ body {
 }
 
 /* Visible keyboard focus everywhere — the browser default disappears on
-   custom-styled buttons, so we put it back deliberately. */
+   custom-styled controls, so we put it back in gold. */
 :where(button, a, input, textarea, select):focus-visible {
-  outline: 2px solid var(--stamp-purple);
+  outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
 
@@ -43,19 +43,42 @@ select {
 }
 
 ::placeholder {
-  color: #a49d85;
+  color: #6f8878;
 }
 
-/* The paper grain: one repeating hairline, like ledger paper. Cheap to
-   render and it is the only decorative flourish in the app. */
+/* Faint gold ruling, like the lines of a bound register. The single
+   decorative flourish in the app; used on headers and the landing page. */
 .paper-rule {
   background-image: repeating-linear-gradient(
     180deg,
-    rgba(166, 124, 46, 0.05) 0px,
-    rgba(166, 124, 46, 0.05) 1px,
+    rgba(201, 168, 76, 0.055) 0px,
+    rgba(201, 168, 76, 0.055) 1px,
     transparent 1px,
     transparent 32px
   );
+}
+
+/* A hairline of gold leaf, for section edges that deserve emphasis. */
+.gold-edge {
+  position: relative;
+}
+.gold-edge::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(201, 168, 76, 0.75),
+    transparent
+  );
+}
+
+/* Dark surfaces need a warmer scrollbar than the default grey. */
+* {
+  scrollbar-color: #2b5340 transparent;
+  scrollbar-width: thin;
 }
 
 @media (prefers-reduced-motion: reduce) {

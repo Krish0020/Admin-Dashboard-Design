@@ -96,7 +96,7 @@ export default function Notices({
                 </div>
               </div>
               <Heading size="sm">{n.title}</Heading>
-              <p className="mt-1.5 text-sm leading-relaxed" style={{ color: "#4A4838" }}>
+              <p className="mt-1.5 text-sm leading-relaxed" style={{ color: c.ink }}>
                 {n.body}
               </p>
               <p className="mt-3 text-[11px]" style={{ color: c.inkMuted }}>

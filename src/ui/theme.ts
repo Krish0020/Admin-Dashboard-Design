@@ -1,27 +1,46 @@
 /**
- * Design tokens for "The Society File".
+ * Design tokens — "The Society Ledger".
  *
- * The visual idea: a registrar's physical case file that has been digitised.
- * Kraft-folder sidebar, punch holes, rubber-stamp status badges in oxblood
- * and violet ink, typewriter display face. Every screen imports from here so
- * the admin panel and the member app stay in one visual language.
+ * Deep forest green leather, aged cream paper, brass and gold leaf: the
+ * colours of a bound society register and a committee room, not a SaaS
+ * dashboard. Everything in the app reads its colour from here, so changing a
+ * value in this file restyles the whole portal.
+ *
+ * The token NAMES are kept from the earlier version on purpose, so every
+ * screen keeps working without edits — only the values changed.
  */
 export const c = {
-  paper: "#EFEAD9",
-  paperLight: "#F8F5EA",
-  ink: "#1A1B16",
-  inkMuted: "#75705C",
-  line: "#DCD3B7",
-  purple: "#4B3B78", // "resolved / paid" stamp ink
-  red: "#9E2B25", // "pending / due" stamp ink
-  kraft: "#C7A467", // folder tan
-  gold: "#A67C2E", // seal / warning
-  green: "#3E6B4A",
+  /** Page background — deep bottle green. */
+  paper: "#0B2018",
+  /** Raised surfaces: cards, panels, modals. */
+  paperLight: "#123024",
+  /** Deepest green, for headers and the sidebar. */
+  deep: "#06140E",
+  /** Primary text — aged cream. */
+  ink: "#F2E8CE",
+  /** Secondary text — sage. */
+  inkMuted: "#9CB1A0",
+  /** Hairlines and borders. */
+  line: "#28503C",
+
+  /** Primary accent / "paid" / "resolved" — gold leaf. */
+  purple: "#C9A84C",
+  /** Warning / "due" — burnished copper. */
+  gold: "#C0703A",
+  /** Urgent / "open complaint" — oxblood. */
+  red: "#B8453B",
+  /** Positive secondary. */
+  green: "#5E8C6A",
+  /** Sidebar leather. */
+  kraft: "#08180F",
 } as const;
 
 export const font = {
-  display: "'Special Elite', 'IBM Plex Mono', monospace",
+  /** Headings — a bookish serif with real presence. */
+  display: "'Playfair Display', Georgia, serif",
+  /** Numbers, receipt numbers, flat numbers. */
   mono: "'IBM Plex Mono', ui-monospace, monospace",
+  /** Body copy. */
   sans: "'Inter', system-ui, sans-serif",
 } as const;
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { addDoc, collection, deleteDoc, doc } from "firebase/firestore";
-import { Copy, Plus, Video, X } from "lucide-react";
+import { Copy, Plus, Video, X, ArrowLeft } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { Meeting } from "../../lib/types";
 import { useLiveQuery } from "../../lib/useLiveQuery";
@@ -17,9 +17,12 @@ const empty = {
 };
 
 /**
- * Society meetings. Online meetings run in a Jitsi Meet room embedded here —
- * it needs no accounts or downloads, which matters when half the committee
- * is on an old Android phone.
+ * Society meetings.
+ *
+ * Online meetings open a Jitsi Meet room inside the dashboard. Jitsi needs no
+ * accounts and no downloads, which matters when half the committee is on an
+ * old phone. The room name is derived from the meeting title, so everyone who
+ * opens the same meeting lands in the same room.
  */
 export default function Meetings() {
   const { data: meetings, loading } = useLiveQuery<Meeting>(
@@ -33,6 +36,7 @@ export default function Meetings() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [room, setRoom] = useState<string | null>(null);
+  const [roomTitle, setRoomTitle] = useState("Society meeting");
   const [copied, setCopied] = useState(false);
 
   const schedule = async () => {
@@ -60,56 +64,87 @@ export default function Meetings() {
     }
   };
 
+  const enterRoom = (name: string, title: string) => {
+    setRoom(name);
+    setRoomTitle(title);
+  };
+
   const copyLink = (name: string) => {
     navigator.clipboard?.writeText(`https://meet.jit.si/${name}`);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setTimeout(() => setCopied(false), 1600);
   };
 
   if (loading) return <Spinner />;
 
+  /* ---------------- the live room ---------------- */
   if (room) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-5xl space-y-3">
+        <button onClick={() => setRoom(null)} className="flex items-center gap-2 text-sm" style={{ color: c.inkMuted }}>
+          <ArrowLeft size={15} /> Back to meetings
+        </button>
+
         <Card padded={false}>
-          <div className="flex items-center justify-between border-b px-5 py-3.5" style={{ borderColor: c.line }}>
-            <span className="flex items-center gap-2 text-sm font-medium" style={{ fontFamily: font.mono }}>
-              <span className="h-2 w-2 rounded-full" style={{ background: c.red }} />
-              {room}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3.5" style={{ borderColor: c.line }}>
+            <div className="flex items-center gap-2.5">
+              <span className="h-2 w-2 animate-pulse rounded-full" style={{ background: c.red }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ fontFamily: font.display }}>
+                  {roomTitle}
+                </p>
+                <p className="text-[11px]" style={{ color: c.inkMuted, fontFamily: font.mono }}>
+                  {room}
+                </p>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Btn variant="outline" onClick={() => copyLink(room)}>
                 <Copy size={13} /> {copied ? "Link copied" : "Copy join link"}
               </Btn>
               <Btn variant="danger" onClick={() => setRoom(null)}>
-                Leave
+                Leave meeting
               </Btn>
             </div>
           </div>
+
           <iframe
             title="Society meeting"
-            src={`https://meet.jit.si/${room}#config.prejoinPageEnabled=false`}
-            allow="camera; microphone; fullscreen; display-capture"
-            style={{ width: "100%", height: "70vh", border: 0 }}
+            src={`https://meet.jit.si/${room}#config.prejoinPageEnabled=false&config.startWithAudioMuted=true`}
+            allow="camera; microphone; fullscreen; display-capture; autoplay"
+            style={{ width: "100%", height: "72vh", border: 0, display: "block" }}
           />
         </Card>
+
+        <Muted>
+          Share the join link with residents — they open it in any browser, no account or
+          app needed. Your camera and microphone are asked for by Jitsi, not by this portal.
+        </Muted>
       </div>
     );
   }
 
+  /* ---------------- the lobby ---------------- */
   return (
     <div className="mx-auto max-w-4xl space-y-5">
-      <Card className="text-center">
-        <Video size={26} className="mx-auto mb-3" style={{ color: c.purple }} />
+      <Card className="gold-edge text-center">
+        <span
+          className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+          style={{ border: `1.5px solid ${c.purple}`, color: c.purple }}
+        >
+          <Video size={24} />
+        </span>
         <Heading size="lg">Hold a society meeting</Heading>
-        <Muted className="mx-auto mt-1 max-w-md">
-          Start a video room now, or schedule one so residents can plan around it. Members join
-          from a link — no account or app download.
+        <Muted className="mx-auto mt-2 max-w-md">
+          Open a video room now for an urgent discussion, or schedule one so residents can
+          plan around it. Members join from a link — no account, no download.
         </Muted>
-        <div className="mt-5 flex justify-center gap-3">
-          <Btn onClick={() => setRoom(`NSCHS-${Math.random().toString(36).slice(2, 8)}`)}>Start now</Btn>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Btn onClick={() => enterRoom(`NSCHS-${Math.random().toString(36).slice(2, 8)}`, "Society meeting")}>
+            <Video size={16} /> Start meeting now
+          </Btn>
           <Btn variant="outline" onClick={() => setOpen(true)}>
-            <Plus size={15} /> Schedule
+            <Plus size={15} /> Schedule for later
           </Btn>
         </div>
       </Card>
@@ -119,14 +154,14 @@ export default function Meetings() {
           <Heading>Scheduled meetings</Heading>
         </div>
         {meetings.length === 0 ? (
-          <Empty title="Nothing scheduled." />
+          <Empty title="Nothing scheduled." action={<Btn onClick={() => setOpen(true)}>Schedule a meeting</Btn>} />
         ) : (
           <ul className="divide-y" style={{ borderColor: c.line }}>
             {meetings.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5">
+              <li key={m.id} className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">{m.title}</p>
-                  <p className="text-[11px]" style={{ color: c.inkMuted }}>
+                  <p className="text-[11px]" style={{ color: c.inkMuted, fontFamily: font.mono }}>
                     {m.date} at {m.time} · {m.mode}
                     {m.venueOrLink ? ` · ${m.venueOrLink}` : ""}
                   </p>
@@ -136,15 +171,11 @@ export default function Meetings() {
                     </p>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
+                <div className="flex shrink-0 items-center gap-2">
                   {m.mode === "Online" && (
-                    <button
-                      onClick={() => setRoom(m.roomName || `NSCHS-${m.id.slice(0, 6)}`)}
-                      className="text-xs font-semibold underline"
-                      style={{ color: c.purple }}
-                    >
-                      Open room
-                    </button>
+                    <Btn onClick={() => enterRoom(m.roomName || `NSCHS-${m.id.slice(0, 6)}`, m.title)}>
+                      <Video size={14} /> Start meeting
+                    </Btn>
                   )}
                   <button
                     onClick={() => {
@@ -153,7 +184,7 @@ export default function Meetings() {
                     style={{ color: c.inkMuted }}
                     aria-label="Cancel meeting"
                   >
-                    <X size={15} />
+                    <X size={16} />
                   </button>
                 </div>
               </li>
@@ -185,10 +216,7 @@ export default function Meetings() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Mode">
-                <Select
-                  value={form.mode}
-                  onChange={(e) => setForm({ ...form, mode: e.target.value as Meeting["mode"] })}
-                >
+                <Select value={form.mode} onChange={(e) => setForm({ ...form, mode: e.target.value as Meeting["mode"] })}>
                   <option>Online</option>
                   <option>Offline</option>
                 </Select>
